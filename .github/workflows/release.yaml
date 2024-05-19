@@ -1,4 +1,4 @@
-name: Release Crypto package
+name: Release package
 
 on:
   # Run when a release is published
@@ -14,7 +14,7 @@ jobs:
       contents: write # Used to upload the bundled library
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Roc
         uses: hasnep/setup-roc@main
         with:
@@ -22,6 +22,5 @@ jobs:
       - name: Bundle and release the library
         uses: hasnep/bundle-roc-library@main
         with:
-          library: crypto/main.roc # Path to the library's entrypoint
+          library: main.roc # Path to the library's entrypoint
           token: ${{ github.token }}
-          
