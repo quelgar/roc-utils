@@ -12,7 +12,8 @@ Miscellaneous utility functions for the Roc language. I wrote these as an exerci
 Look for the latest release and copy the URL of the `.tar.br` file, then use it in your Roc application like this:
 
 ```roc
-app [main] {
+app [main!] {
+    cli: platform "<URL of .tar.br platform release>",
     utils: "<URL of .tar.br release asset>",
 }
 
