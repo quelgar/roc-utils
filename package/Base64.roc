@@ -1,6 +1,6 @@
 module [encode, decode]
 
-base64IndexTable = [
+base64_index_table = [
     'A',
     'B',
     'C',
@@ -67,55 +67,55 @@ base64IndexTable = [
     '/',
 ]
 
-reverseBase64IndexMap = base64IndexTable |> List.mapWithIndex (\e, i -> (e, i)) |> Dict.fromList |> Dict.insert '=' 0
+reverse_base64_index_map = base64_index_table |> List.map_with_index(\e, i -> (e, i)) |> Dict.from_list |> Dict.insert('=', 0)
 
 ## Encodes a list of bytes into a Base64 string.
 encode : List U8 -> Str
 encode = \bytes ->
-    length = List.len bytes
-    paddingCount =
+    length = List.len(bytes)
+    padding_count =
         when length % 3 is
             1 -> 2
             2 -> 1
             _ -> 0
-    paddedInput = List.concat bytes (List.repeat 0 paddingCount)
-    encodeChunk = \state, chunk ->
+    padded_input = List.concat(bytes, List.repeat(0, padding_count))
+    encode_chunk = \state, chunk ->
         when chunk is
             [a, b, c] ->
                 n =
-                    Num.toU32 a
-                    |> Num.shiftLeftBy 16
-                    |> Num.bitwiseOr (Num.toU32 b |> Num.shiftLeftBy 8)
-                    |> Num.bitwiseOr (Num.toU32 c)
-                six1 = Num.shiftRightZfBy n 18 |> Num.bitwiseAnd 0x3F
-                six2 = Num.shiftRightZfBy n 12 |> Num.bitwiseAnd 0x3F
-                six3 = Num.shiftRightZfBy n 6 |> Num.bitwiseAnd 0x3F
-                six4 = n |> Num.bitwiseAnd 0x3F
-                when List.mapTry [six1, six2, six3, six4] \i -> List.get base64IndexTable (Num.toU64 i) is
-                    Ok l -> List.concat state l
-                    Err _ -> crash "bug in base64Encode"
+                    Num.to_u32(a)
+                    |> Num.shift_left_by(16)
+                    |> Num.bitwise_or((Num.to_u32(b) |> Num.shift_left_by(8)))
+                    |> Num.bitwise_or(Num.to_u32(c))
+                six1 = Num.shift_right_zf_by(n, 18) |> Num.bitwise_and(0x3F)
+                six2 = Num.shift_right_zf_by(n, 12) |> Num.bitwise_and(0x3F)
+                six3 = Num.shift_right_zf_by(n, 6) |> Num.bitwise_and(0x3F)
+                six4 = n |> Num.bitwise_and(0x3F)
+                when List.map_try([six1, six2, six3, six4], \i -> List.get(base64_index_table, Num.to_u64(i))) is
+                    Ok(l) -> List.concat(state, l)
+                    Err(_) -> crash("bug in base64Encode")
 
-            other -> crash "expected a list of 3 elements, but got $(List.len other |> Num.toStr) elements"
+            other -> crash("expected a list of 3 elements, but got $(List.len(other) |> Num.to_str) elements")
 
-    outPadding = List.repeat '=' paddingCount
-    outLength = (length + paddingCount) // 3 * 4
+    out_padding = List.repeat('=', padding_count)
+    out_length = (length + padding_count) // 3 * 4
 
-    List.chunksOf paddedInput 3
-    |> List.walk (List.withCapacity outLength) encodeChunk
-    |> List.dropLast paddingCount
-    |> List.concat outPadding
-    |> Str.fromUtf8
+    List.chunks_of(padded_input, 3)
+    |> List.walk(List.with_capacity(out_length), encode_chunk)
+    |> List.drop_last(padding_count)
+    |> List.concat(out_padding)
+    |> Str.from_utf8
     |> \r ->
         when r is
-            Ok v -> v
-            Err _ -> crash "bug in base64Encode"
+            Ok(v) -> v
+            Err(_) -> crash("bug in base64Encode")
 
 expect
-    result = Str.toUtf8 "Many hands make light work." |> encode
+    result = Str.to_utf8("Many hands make light work.") |> encode
     result == "TWFueSBoYW5kcyBtYWtlIGxpZ2h0IHdvcmsu"
 
 expect
-    result = Str.toUtf8 "my country is the world, and my religion is to do good." |> encode
+    result = Str.to_utf8("my country is the world, and my religion is to do good.") |> encode
     result == "bXkgY291bnRyeSBpcyB0aGUgd29ybGQsIGFuZCBteSByZWxpZ2lvbiBpcyB0byBkbyBnb29kLg=="
 
 expect
@@ -132,54 +132,59 @@ expect
 
 decode : Str -> Result (List U8) [InvalidBase64Char, InvalidBase64Length]
 decode = \str ->
-    chars = str |> Str.toUtf8
-    length = List.len chars
+    chars = str |> Str.to_utf8
+    length = List.len(chars)
     if length % 4 != 0 then
-        Err InvalidBase64Length
+        Err(InvalidBase64Length)
     else
-        outLength = length // 4 * 3
+        out_length = length // 4 * 3
         chars
-        |> List.chunksOf 4
-        |> List.walkTry (List.withCapacity outLength) \state, chunk4 ->
-            paddingCount = List.countIf chunk4 \c -> c == '='
-            chunk4
-            |> List.mapTry \c -> Dict.get reverseBase64IndexMap c
-            |> Result.map \l ->
-                when l is
-                    [six1, six2, six3, six4] ->
-                        shifted1 = Num.shiftLeftBy six1 18
-                        shifted2 = Num.shiftLeftBy six2 12
-                        shifted3 = Num.shiftLeftBy six3 6
-                        shifted4 = six4
-                        combined = shifted1 |> Num.bitwiseOr shifted2 |> Num.bitwiseOr shifted3 |> Num.bitwiseOr shifted4
-                        bytes =
-                            [
-                                Num.shiftRightZfBy combined 16 |> Num.toU8,
-                                Num.shiftRightZfBy combined 8 |> Num.toU8,
-                                combined |> Num.toU8,
-                            ]
-                            |> List.dropLast paddingCount
-                        state |> List.concat bytes
+        |> List.chunks_of(4)
+        |> List.walk_try(
+            List.with_capacity(out_length),
+            \state, chunk4 ->
+                padding_count = List.count_if(chunk4, \c -> c == '=')
+                chunk4
+                |> List.map_try(\c -> Dict.get(reverse_base64_index_map, c))
+                |> Result.map(
+                    \l ->
+                        when l is
+                            [six1, six2, six3, six4] ->
+                                shifted1 = Num.shift_left_by(six1, 18)
+                                shifted2 = Num.shift_left_by(six2, 12)
+                                shifted3 = Num.shift_left_by(six3, 6)
+                                shifted4 = six4
+                                combined = shifted1 |> Num.bitwise_or(shifted2) |> Num.bitwise_or(shifted3) |> Num.bitwise_or(shifted4)
+                                bytes =
+                                    [
+                                        Num.shift_right_zf_by(combined, 16) |> Num.to_u8,
+                                        Num.shift_right_zf_by(combined, 8) |> Num.to_u8,
+                                        combined |> Num.to_u8,
+                                    ]
+                                    |> List.drop_last(padding_count)
+                                state |> List.concat(bytes)
 
-                    _ -> crash "bug in base64Decode: should have already checked the length was a multiple of 4"
-        |> Result.mapErr \_ -> InvalidBase64Char
-
-expect
-    result = decode "TWFueSBoYW5kcyBtYWtlIGxpZ2h0IHdvcmsu"
-    result == Ok (Str.toUtf8 "Many hands make light work.")
-
-expect
-    result = decode "bXkgY291bnRyeSBpcyB0aGUgd29ybGQsIGFuZCBteSByZWxpZ2lvbiBpcyB0byBkbyBnb29kLg=="
-    result == Ok (Str.toUtf8 "my country is the world, and my religion is to do good.")
+                            _ -> crash("bug in base64Decode: should have already checked the length was a multiple of 4"),
+                ),
+        )
+        |> Result.map_err(\_ -> InvalidBase64Char)
 
 expect
-    result = decode ""
-    result == Ok []
+    result = decode("TWFueSBoYW5kcyBtYWtlIGxpZ2h0IHdvcmsu")
+    result == Ok(Str.to_utf8("Many hands make light work."))
 
 expect
-    result = decode "AA=="
-    result == Ok [0]
+    result = decode("bXkgY291bnRyeSBpcyB0aGUgd29ybGQsIGFuZCBteSByZWxpZ2lvbiBpcyB0byBkbyBnb29kLg==")
+    result == Ok(Str.to_utf8("my country is the world, and my religion is to do good."))
 
 expect
-    result = decode "AAAA"
-    result == Ok [0, 0, 0]
+    result = decode("")
+    result == Ok([])
+
+expect
+    result = decode("AA==")
+    result == Ok([0])
+
+expect
+    result = decode("AAAA")
+    result == Ok([0, 0, 0])
